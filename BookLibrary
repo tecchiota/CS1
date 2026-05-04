@@ -1,0 +1,168 @@
+import requests
+import re
+from collections import Counter
+
+
+# -----------------------------
+# INITIAL DATA
+# -----------------------------
+
+my_library = {
+    "Moby Dick": {"url":"https://www.gutenberg.org/files/2701/2701-0.txt", "score":6}, 
+    "The Count of Monte Cristo": {"url":"https://www.gutenberg.org/cache/epub/1184/pg1184.txt", "score":7},
+    "The Odyssey": {"url":"https://www.gutenberg.org/files/28797/28797_readme.txt", "score":10}
+}
+
+# TODO 3: Read stop words from a file instead; this file "EN-Stopwords" contains thousands stop words(2 points)
+try:
+    with open("EN-Stopwords.txt", "r") as f:
+        STOP_WORDS = {line.strip().lower() for line in f if line.strip()}
+except FileNotFoundError:
+    print("En-Stopwords.txt not found")
+
+# -----------------------------
+# FETCH BOOK
+# -----------------------------
+def fetch_book(url):
+    """Download text from a URL."""
+    # TODO 4: Handle exceptions (network errors, invalid URLs, etc.) (1 point)
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.text
+    except requests.exceptions.RequestException:
+        print(f"Failed to fetch book.")
+        return None
+# -----------------------------
+# CLEAN TEXT
+# -----------------------------
+def clean_text(raw_text):
+    """Lowercase text and remove punctuation."""
+    text = raw_text.lower()
+    text = re.sub(r'[^a-z\s]', '', text)
+    return text.split()
+
+# -----------------------------
+# ANALYZE TEXT
+# -----------------------------
+def analyze_text(words):
+    """Remove stop words and count frequencies."""
+    filtered_words = [w for w in words if w not in STOP_WORDS and len(w) > 2]   #checking len(w)> 2 to remove tiny words((is, to, at))
+    return Counter(filtered_words).most_common(10)
+
+
+
+# -----------------------------
+# VISUALIZATION (BAR CHART)
+# -----------------------------
+
+def plot_results(stats, title, score):
+    """Create a bar chart of word frequencies."""
+    print(f"\n---{title.upper()} (Review Score: {score}/10) ---")
+    print("-" * 90)
+    for word, count in stats:
+        bar = "█" * (count // 50)
+        print(f"{word:>15} | {bar} {count}")
+
+# -----------------------------
+# MENU SYSTEM
+# -----------------------------
+def main():
+    while True:
+        print("\n--- LIBRARY MANAGER ---")
+        book_list =  ", ".join([f"{k} ({v['score']}/10)" for k, v in my_library.items()])
+        print(f"Current Books: {book_list}")
+        print("1. Add New Book")
+        print("2. Remove Book")
+        print("3. Update Book URL")
+        print("4. Analyze a Book")
+        print("5. Manage Review Score")
+        print("6. Exit")
+#I added a review score option for the books added to my book library
+        choice = input("\nSelect (1-6): ")
+
+        if choice == '1':
+            name = input("Enter Book Title: ").strip()
+            url = input("Enter Gutenberg .txt URL: ").strip()
+            score_in = input("Enter Review Score (1-10): ").strip()
+            if not name or not url:
+                print("Error: Name or URL cannot be empty.")
+            elif any(book.lower() == name.lower() for book in my_library):
+                        print("Book already exists")
+            else:
+                try:
+                    score = int(score_in) if score_in else 0
+                    my_library[name] = {"url": url, "score": score}
+                    print(f"'{name}' added successfully.")
+                except ValueError:
+                    print(f"Error: Invalid input")
+
+        elif choice == '2':
+            name_input = input("Enter title to remove: ").strip().lower()
+            target_removal = None
+
+            for k in my_library:
+                if k.lower() == name_input:
+                    target_removal = k
+                    break
+            if target_removal:
+                del my_library[target_removal]
+                print(f"{target_removal} has been removed.")            
+
+        elif choice == '3':
+            # UPDATE OPERATION
+            name_input = input("Enter the book title to update: ").strip().lower()
+            target_key = next((k for k in my_library if k.lower() == name_input), None)
+            
+            if target_key:
+                print(f"Current URL: {my_library[target_key]['url']}")
+                new_url = input("Enter new URL: ").strip()
+                if new_url:
+                    my_library[target_key]['url'] = new_url
+                    print(f"'{target_key}' updated successfuly.")
+                else:
+                    print("Invalid URL update cancelled.")            
+            else:
+                print("Book not found.")
+
+        elif choice == '4':
+            name_input = input("Which book to analyze? ").strip().lower()
+            
+            target_key = None
+            for k in my_library:
+                if k.lower() == name_input:
+                    target_key = k
+                    break
+
+            if target_key:
+                url = my_library[target_key]['url']
+                print(f"Fetching and analyzing '{target_key}'...")
+                raw_text = fetch_book(url)
+
+                if raw_text:
+                    words = clean_text(raw_text)
+                    stats = analyze_text(words)
+                    plot_results(stats, target_key, score)
+            else:
+                print("Error: Book not found.")
+
+        elif choice == '5':
+            name_input = input("Enter book title to score: ").strip().lower()
+            target = next((k for k in my_library if k.lower() == name_input), None)
+            if target:
+                try:
+                    new_score = int(input(f"New Score for {target} (1-10): "))
+                    my_library[target]["score"] = new_score
+                    print("Score updated!")
+                except ValueError:
+                    print("Invalid input.")
+            else:
+                print("Book not found.")
+
+        elif choice == '6':
+            print("Goodbye!")
+            break
+
+
+if __name__ == "__main__":
+    main()
